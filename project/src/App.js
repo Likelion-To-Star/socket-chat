@@ -1,106 +1,65 @@
-import React, { useState, useEffect } from 'react';
-import { Stomp } from '@stomp/stompjs';
-import SockJS from 'sockjs-client';
+import React, { useState } from 'react';
+import axios from 'axios';
+import Login from './Login';
 
 function App() {
-  const [stompClient, setStompClient] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState('연결되지 않음');
-  const [chatMessages, setChatMessages] = useState([]);
-  const [messageContent, setMessageContent] = useState('');
-  const [chatRoomId] = useState(1); // 테스트할 채팅방 ID
-  const [userId] = useState(1); // 테스트할 사용자 ID
-  const jwtToken = 'eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6InkyXzEyQG5hdmVyLmNvbSIsInJvbGUiOiJST0xFX1VTRVIiLCJpYXQiOjE3MzA3MDkyNDYsImV4cCI6MTczMDc5NTY0Nn0.z8KZdo7cPf2vG3Sx_fL_5LESiOoZHF9isurJWGjRgQ8'
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [chatRooms, setChatRooms] = useState([]);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
-    connectToChatRoom();
-    return () => disconnectFromChatRoom();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // 로그인 성공 시 호출되는 함수
+  const handleLoginSuccess = (jwtToken) => {
+    console.log("jwt : ", jwtToken)
+    localStorage.setItem('jwtToken', jwtToken); // JWT 저장
+    setIsLoggedIn(true); // 로그인 상태로 전환
+    fetchChatRooms(); // 채팅방 목록 가져오기
+  };
 
-  const connectToChatRoom = () => {
-    console.log("소켓 연결 시도 중...");
+  // 채팅방 목록을 가져오는 함수
+  const fetchChatRooms = async () => {
+    try {
+      const jwtToken = localStorage.getItem('jwtToken');
+      if (!jwtToken) throw new Error('JWT 토큰이 없습니다.');
 
-    const socketUrl = `http://localhost:8080/ws/chat`;
-    const stompClient = Stomp.over(() => new SockJS(socketUrl));
+      const response = await axios.get('http://localhost:8080/api/chat/all', {
+        headers: {
+          Authorization: jwtToken, // JWT 토큰을 헤더에 포함
+        },
+      });
 
-    stompClient.connect(
-      { 'Authorization': `Bearer ${jwtToken}` },
-      () => {
-        console.log("소켓 연결 성공!");
-        setConnectionStatus('연결 성공!');
-        setStompClient(stompClient);
-
-        // 채팅방 구독 : 새로운 메시지가 도착하였을때 알려달라고 요청(구독)
-        // /topic 을 통해 구독이 가능하며, /chatroom/1 이 구독할 주소에 해당
-        stompClient.subscribe(`/topic/chatroom/${chatRoomId}`, (message) => {
-          const receivedMessage = JSON.parse(message.body);
-          // 새로운 메시지 도착시 함수 실행
-          setChatMessages((prevMessages) => [...prevMessages, receivedMessage]);
-        });
-
-        // 채팅방 입장 알림 - 최초 입장시에만 알리도록 수정 필요
-        stompClient.send(`/app/chat.enter`, {}, JSON.stringify({
-          chatRoomId: chatRoomId,
-          memberId: userId,
-        }));
-      },
-      (error) => {
-        console.error("소켓 연결 실패:", error);
-        setConnectionStatus('연결 실패');
+      if (response.data.isSuccess) {
+        setChatRooms(response.data.result); // 채팅방 목록 설정
+      } else {
+        throw new Error('채팅방 목록을 불러오는 데 실패했습니다.');
       }
-    );
-  };
-
-  const disconnectFromChatRoom = () => {
-    if (stompClient) {
-      // 채팅방 퇴장 알림
-      stompClient.send(`/app/chat.exit`, {}, JSON.stringify({
-        chatRoomId: chatRoomId,
-        memberId: userId,
-      }));
-      stompClient.disconnect();
-      setConnectionStatus('연결 해제됨');
-      console.log("소켓 연결 해제됨");
-    }
-  };
-
-  const sendMessage = () => {
-    if (stompClient && messageContent.trim() !== '') {
-      const chatMessage = {
-        chatRoomId: chatRoomId,
-        senderId: userId,
-        content: messageContent,
-      };
-      stompClient.send(`/app/chat.sendMessage`, {}, JSON.stringify(chatMessage));
-      setMessageContent('');
+    } catch (err) {
+      console.error(err);
+      setError('채팅방 목록을 불러오는 중 오류가 발생했습니다.');
     }
   };
 
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Chat Application</h1>
+        <h1>채팅 애플리케이션</h1>
       </header>
-      <div>
-        <p>연결 상태: {connectionStatus}</p>
+      {isLoggedIn ? (
         <div>
-          <h2>채팅방 ID: {chatRoomId}</h2>
-          <div style={{ border: '1px solid black', height: '300px', overflowY: 'scroll' }}>
-            {chatMessages.map((msg, index) => (
-              <div key={index}>
-                <strong>{msg.senderId === userId ? '나' : `사용자 ${msg.senderId}`}</strong>: {msg.content}
-              </div>
-            ))}
-          </div>
-          <input
-            type="text"
-            value={messageContent}
-            onChange={(e) => setMessageContent(e.target.value)}
-            placeholder="메시지를 입력하세요"
-          />
-          <button onClick={sendMessage}>전송</button>
+          <h2>채팅방 목록</h2>
+          {chatRooms.length > 0 ? (
+            <ul>
+              {chatRooms.map((room) => (
+                <li key={room.chatRoomId}>{room.chatRoomName}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>채팅방이 없습니다.</p>
+          )}
         </div>
-      </div>
+      ) : (
+        <Login onLoginSuccess={handleLoginSuccess} />
+      )}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
   );
 }
