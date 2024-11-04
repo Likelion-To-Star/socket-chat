@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Stomp } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import './App.css';
 
-function ChatRoom({ chatRoomId, jwtToken }) {
+function ChatRoom({ jwtToken }) {
+  const { chatRoomId } = useParams();
   const [stompClient, setStompClient] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('연결되지 않음');
   const [chatMessages, setChatMessages] = useState([]);
   const [messageContent, setMessageContent] = useState('');
-  const [userId] = useState(1); // 임의의 사용자 ID 설정 (테스트용)
 
   useEffect(() => {
     connectToChatRoom();
@@ -18,26 +20,19 @@ function ChatRoom({ chatRoomId, jwtToken }) {
     console.log("소켓 연결 시도 중...");
 
     const socketUrl = `http://localhost:8080/ws/chat`;
-    const stompClient = Stomp.over(() => new SockJS(socketUrl));
+    const client = Stomp.over(() => new SockJS(socketUrl));
 
-    stompClient.connect(
+    client.connect(
       { 'Authorization': `${jwtToken}` },
       () => {
         console.log("소켓 연결 성공!");
         setConnectionStatus('연결 성공!');
-        setStompClient(stompClient);
+        setStompClient(client);
 
-        // 채팅방 구독
-        stompClient.subscribe(`/topic/chatroom/${chatRoomId}`, (message) => {
+        client.subscribe(`/topic/chatroom/${chatRoomId}`, (message) => {
           const receivedMessage = JSON.parse(message.body);
           setChatMessages((prevMessages) => [...prevMessages, receivedMessage]);
         });
-
-        // 채팅방 입장 알림
-        stompClient.send(`/app/chat.enter`, {}, JSON.stringify({
-          chatRoomId: chatRoomId,
-          memberId: userId,
-        }));
       },
       (error) => {
         console.error("소켓 연결 실패:", error);
@@ -48,9 +43,8 @@ function ChatRoom({ chatRoomId, jwtToken }) {
 
   const disconnectFromChatRoom = () => {
     if (stompClient) {
-      stompClient.send(`/app/chat.exit`, {}, JSON.stringify({
+      stompClient.send(`/app/chat.exit`, { 'Authorization': jwtToken }, JSON.stringify({
         chatRoomId: chatRoomId,
-        memberId: userId,
       }));
       stompClient.disconnect();
       setConnectionStatus('연결 해제됨');
@@ -62,10 +56,9 @@ function ChatRoom({ chatRoomId, jwtToken }) {
     if (stompClient && messageContent.trim() !== '') {
       const chatMessage = {
         chatRoomId: chatRoomId,
-        senderId: userId,
         content: messageContent,
       };
-      stompClient.send(`/app/chat.sendMessage`, {}, JSON.stringify(chatMessage));
+      stompClient.send(`/app/chat.sendMessage`, { 'Authorization': jwtToken }, JSON.stringify(chatMessage));
       setMessageContent('');
     }
   };
@@ -73,11 +66,12 @@ function ChatRoom({ chatRoomId, jwtToken }) {
   return (
     <div>
       <h2>채팅방 ID: {chatRoomId}</h2>
+      <p>접속자 JWT: {jwtToken}</p>
       <p>연결 상태: {connectionStatus}</p>
-      <div style={{ border: '1px solid black', height: '300px', overflowY: 'scroll' }}>
+      <div className="chat-box">
         {chatMessages.map((msg, index) => (
           <div key={index}>
-            <strong>{msg.senderId === userId ? '나' : `사용자 ${msg.senderId}`}</strong>: {msg.content}
+            <strong>{`사용자 ${msg.senderId}`}</strong>: {msg.content}
           </div>
         ))}
       </div>
