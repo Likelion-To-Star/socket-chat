@@ -1,21 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import Login from './Login';
+import './App.css';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [chatRooms, setChatRooms] = useState([]);
   const [error, setError] = useState('');
 
-  // 로그인 성공 시 호출되는 함수
   const handleLoginSuccess = (jwtToken) => {
-    console.log("jwt : ", jwtToken)
-    localStorage.setItem('jwtToken', jwtToken); // JWT 저장
-    setIsLoggedIn(true); // 로그인 상태로 전환
-    fetchChatRooms(); // 채팅방 목록 가져오기
+    localStorage.setItem('jwtToken', jwtToken);
+    setIsLoggedIn(true);
+    fetchChatRooms();
   };
 
-  // 채팅방 목록을 가져오는 함수
   const fetchChatRooms = async () => {
     try {
       const jwtToken = localStorage.getItem('jwtToken');
@@ -23,12 +21,12 @@ function App() {
 
       const response = await axios.get('http://localhost:8080/api/chat/all', {
         headers: {
-          Authorization: jwtToken, // JWT 토큰을 헤더에 포함
+          Authorization: jwtToken,
         },
       });
 
       if (response.data.isSuccess) {
-        setChatRooms(response.data.result); // 채팅방 목록 설정
+        setChatRooms(response.data.result);
       } else {
         throw new Error('채팅방 목록을 불러오는 데 실패했습니다.');
       }
@@ -46,15 +44,17 @@ function App() {
       {isLoggedIn ? (
         <div>
           <h2>채팅방 목록</h2>
-          {chatRooms.length > 0 ? (
-            <ul>
-              {chatRooms.map((room) => (
-                <li key={room.chatRoomId}>{room.chatRoomName}</li>
-              ))}
-            </ul>
-          ) : (
-            <p>채팅방이 없습니다.</p>
-          )}
+          <div className="chat-room-list">
+            {chatRooms.length > 0 ? (
+              chatRooms.map((room) => (
+                <div key={room.chatRoomId} className="chat-room-box">
+                  {room.chatRoomName}
+                </div>
+              ))
+            ) : (
+              <p>채팅방이 없습니다.</p>
+            )}
+          </div>
         </div>
       ) : (
         <Login onLoginSuccess={handleLoginSuccess} />
