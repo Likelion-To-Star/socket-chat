@@ -10,9 +10,11 @@ function ChatRoom({ jwtToken }) {
   const [connectionStatus, setConnectionStatus] = useState('연결되지 않음');
   const [chatMessages, setChatMessages] = useState([]);
   const [messageContent, setMessageContent] = useState('');
+  const userEmail = sessionStorage.getItem("userEmail")
 
   useEffect(() => {
-    connectToChatRoom();
+    console.log("userEmail : ", userEmail)
+    connectToChatRoom(); // 소켓을 통해 채팅방 연결 시도
     return () => disconnectFromChatRoom();
   }, [chatRoomId]);
 
@@ -28,7 +30,9 @@ function ChatRoom({ jwtToken }) {
         console.log("소켓 연결 성공!");
         setConnectionStatus('연결 성공!');
         setStompClient(client);
-
+        
+        // 채팅방 연결(구독)
+        // 소켓을 통해 새로운 채팅 도착시 setChatMessages 호출
         client.subscribe(`/topic/chatroom/${chatRoomId}`, (message) => {
           const receivedMessage = JSON.parse(message.body);
           setChatMessages((prevMessages) => [...prevMessages, receivedMessage]);
@@ -52,6 +56,7 @@ function ChatRoom({ jwtToken }) {
     }
   };
 
+  // 채팅 보내기
   const sendMessage = () => {
     if (stompClient && messageContent.trim() !== '') {
       const chatMessage = {
@@ -69,11 +74,15 @@ function ChatRoom({ jwtToken }) {
       <p>접속자 JWT: {jwtToken}</p>
       <p>연결 상태: {connectionStatus}</p>
       <div className="chat-box">
-        {chatMessages.map((msg, index) => (
-          <div key={index}>
-            <strong>{`사용자 ${msg.senderId}`}</strong>: {msg.content}
-          </div>
-        ))}
+        {chatMessages.map((msg, index) => {
+          // 소켓을 통해 수신받은 채팅 메시지
+          console.log("Received message object:", msg);
+          return (
+            <div key={index}>
+              <strong>{`사용자 ${msg.email}`}</strong>: {msg.content}
+            </div>
+          );
+        })}
       </div>
       <input
         type="text"

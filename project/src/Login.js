@@ -18,9 +18,10 @@ function Login({ onLoginSuccess }) {
 
       // 로그인 성공 여부 확인
       if (response.data.isSuccess && response.data.result) {
-        console.log("얻어온 jwt", response.data.result)
-        const jwtToken = response.data.result
-        onLoginSuccess(jwtToken); // App 컴포넌트로 토큰 전달
+        console.log("얻어온 jwt", response.data.result);
+        console.log("사용자 email", email)
+        const jwtToken = response.data.result;
+        onLoginSuccess(jwtToken, email);
       } else {
         throw new Error('로그인 실패');
       }

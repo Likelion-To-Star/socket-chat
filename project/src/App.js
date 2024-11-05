@@ -6,11 +6,14 @@ import ChatRoom from './ChatRoom';
 
 function App() {
   const [jwtToken, setJwtToken] = useState(sessionStorage.getItem('jwtToken'));
+  const [userEmail, setUserEmail] = useState(sessionStorage.getItem('userEmail'));
 
-  // 로그인 성공 시 JWT 토큰 저장 및 이동
-  const handleLoginSuccess = (token) => {
+  // 로그인 성공 시 JWT 토큰과 이메일 저장 및 이동
+  const handleLoginSuccess = (token, email) => {
     sessionStorage.setItem('jwtToken', token);
+    sessionStorage.setItem('userEmail', email);
     setJwtToken(token);
+    setUserEmail(email);
   };
 
   return (
@@ -23,19 +26,19 @@ function App() {
           <Route
             path="/"
             element={
-              jwtToken ? <Navigate to="/chat-rooms" /> : <Login onLoginSuccess={handleLoginSuccess} />
+              jwtToken && userEmail ? <Navigate to="/chat-rooms" /> : <Login onLoginSuccess={handleLoginSuccess} />
             }
           />
           <Route
             path="/chat-rooms"
             element={
-              jwtToken ? <ChatRooms jwtToken={jwtToken} /> : <Navigate to="/" />
+              jwtToken && userEmail ? <ChatRooms jwtToken={jwtToken} userEmail={userEmail} /> : <Navigate to="/" />
             }
           />
           <Route
             path="/chat-room/:chatRoomId"
             element={
-              jwtToken ? <ChatRoom jwtToken={jwtToken} /> : <Navigate to="/" />
+              jwtToken && userEmail ? <ChatRoom jwtToken={jwtToken} userEmail={userEmail} /> : <Navigate to="/" />
             }
           />
         </Routes>
