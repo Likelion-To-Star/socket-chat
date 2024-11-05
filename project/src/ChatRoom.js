@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom'; // useNavigate import 추가
 import { Stomp } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
+import axios from 'axios'; // axios import 추가
 import './App.css';
 
 // 입장 & 퇴장 알림용
@@ -33,15 +34,21 @@ function OutgoingMessage({ message }) {
 
 function ChatRoom({ jwtToken }) {
   const { chatRoomId } = useParams();
+  const navigate = useNavigate();
   const [connectionStatus, setConnectionStatus] = useState('연결되지 않음');
   const [chatMessages, setChatMessages] = useState([]);
   const [messageContent, setMessageContent] = useState('');
   const userEmail = sessionStorage.getItem("userEmail");
   const stompClient = useRef(null);
   const isConnecting = useRef(false); // 중복 연결 방지 플래그
+  const subscriptionId = useRef(null); // 구독 ID 저장
 
   useEffect(() => {
     console.log("ChatRoom 컴포넌트 mounted");
+    
+    // 기존 메시지 가져오기
+    fetchChatHistory();
+
     if (!stompClient.current && !isConnecting.current) {
       console.log("connectToChatRoom 호출 준비 완료 - 현재 stompClient는 초기화되지 않음");
       connectToChatRoom();
@@ -49,14 +56,36 @@ function ChatRoom({ jwtToken }) {
       console.log("stompClient가 이미 초기화된 상태 또는 연결 중 상태 - 연결 생략");
     }
 
-    // return () => {
-    // 채팅방 컴포넌트 종료시 필요하다면 구독 취소하는 로직 작성
-    //   console.log("ChatRoom 컴포넌트 unmounted - disconnectFromChatRoom 호출 예정");
-    //   disconnectFromChatRoom();
-    // };
+    return () => {
+      // 컴포넌트 언마운트 시 구독 해제
+      if (subscriptionId.current) {
+        console.log("뒤로가기 - 구독만 해제");
+        stompClient.current.unsubscribe(subscriptionId.current);
+        subscriptionId.current = null;
+      }
+    };
   }, [chatRoomId]);
 
-  // 채팅방 연결 - 소켓
+  const fetchChatHistory = async () => {
+    try {
+      console.log("기존 메시지 가져오는 중...");
+      const response = await axios.get(`http://localhost:8080/api/chatroom/all/${chatRoomId}`, {
+        headers: {
+          Authorization: jwtToken,
+        },
+      });
+
+      if (response.data.isSuccess) {
+        console.log("기존 메시지 가져오기 성공:", response.data.result);
+        setChatMessages(response.data.result);
+      } else {
+        console.error("기존 메시지 가져오기 실패:", response.data.message);
+      }
+    } catch (error) {
+      console.error("기존 메시지 가져오는 중 오류 발생:", error);
+    }
+  };
+
   const connectToChatRoom = () => {
     if (isConnecting.current || (stompClient.current && stompClient.current.connected)) {
       console.log("이미 연결 중이거나 연결된 상태이므로 새로운 연결을 생성하지 않음");
@@ -76,13 +105,12 @@ function ChatRoom({ jwtToken }) {
         isConnecting.current = false; // 연결 성공 후 상태 해제
         console.log("WebSocket 연결 성공 및 구독 시작");
 
-        // topic 키워드를 통해 chatroom/{chatRoomId} 에 대한 정보를 구독한다.
-        // 새로운 메시지 전송시 구독해뒀다면 메시지 객체가 반환된다.
-        client.subscribe(`/topic/chatroom/${chatRoomId}`, (message) => {
+        // 구독 및 ID 저장
+        subscriptionId.current = client.subscribe(`/topic/chatroom/${chatRoomId}`, (message) => {
           const receivedMessage = JSON.parse(message.body);
           console.log("새로운 메시지 수신:", receivedMessage);
           setChatMessages((prevMessages) => [...prevMessages, receivedMessage]);
-        });
+        }).id;
       },
       (error) => {
         console.error("소켓 연결 실패:", error);
@@ -92,24 +120,6 @@ function ChatRoom({ jwtToken }) {
     );
   };
 
-  // 채팅방 나가기(탈퇴)에 해당, 채팅방 회원에서 기존 회원을 제거한다.
-  const disconnectFromChatRoom = () => {
-    if (stompClient.current && stompClient.current.connected) {
-      console.log("채팅방 나가기 호출됨 - 연결 종료 예정");
-      stompClient.current.send(`/app/chat.exit`, { 'Authorization': jwtToken }, JSON.stringify({
-        chatRoomId: chatRoomId,
-      }));
-      stompClient.current.disconnect(() => {
-        console.log("연결 해제 완료");
-        setConnectionStatus('연결 해제됨');
-        stompClient.current = null; // 연결 해제 후 stompClient 초기화
-      });
-    } else {
-      console.log("disconnectFromChatRoom - 연결된 stompClient가 없으므로 해제하지 않음");
-    }
-  };
-
-  // 메시지 발송
   const sendMessage = () => {
     if (stompClient.current && stompClient.current.connected && messageContent.trim() !== '') {
       const chatMessage = {
@@ -124,6 +134,16 @@ function ChatRoom({ jwtToken }) {
     }
   };
 
+  const handleBack = () => {
+    // 뒤로가기 버튼 클릭 시, 구독만 해제하고 소켓 연결 유지
+    if (subscriptionId.current) {
+      console.log("뒤로가기 - 구독만 해제");
+      stompClient.current.unsubscribe(subscriptionId.current);
+      subscriptionId.current = null;
+    }
+    navigate(-1); // 뒤로가기
+  };
+
   return (
     <div>
       <h2>채팅방 ID: {chatRoomId}</h2>
@@ -131,7 +151,6 @@ function ChatRoom({ jwtToken }) {
       <p>연결 상태: {connectionStatus}</p>
       <div className="chat-box">
         {chatMessages.map((msg, index) => {
-          // 채팅 타입과, 이메일을 비교하여 컴포넌트 변경
           if (msg.messageType === "ANNOUNCE") {
             return <EntryExitMessage key={index} message={msg} />;
           } else if (msg.messageType === "TALK" && msg.email !== userEmail) {
@@ -149,7 +168,7 @@ function ChatRoom({ jwtToken }) {
         placeholder="메시지를 입력하세요"
       />
       <button onClick={sendMessage}>전송</button>
-      <button onClick={disconnectFromChatRoom}>채팅방 나가기</button>
+      <button onClick={handleBack}>뒤로가기</button>
     </div>
   );
 }
