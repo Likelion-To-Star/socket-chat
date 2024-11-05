@@ -4,6 +4,7 @@ import { Stomp } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import './App.css';
 
+// 입장 & 퇴장 알림용
 function EntryExitMessage({ message }) {
   return (
     <div className="entry-exit-message">
@@ -12,6 +13,7 @@ function EntryExitMessage({ message }) {
   );
 }
 
+// 전달받은 메시지
 function IncomingMessage({ message }) {
   return (
     <div className="incoming-message">
@@ -20,6 +22,7 @@ function IncomingMessage({ message }) {
   );
 }
 
+// 전송한 메시지 (나의 메시지)
 function OutgoingMessage({ message }) {
   return (
     <div className="outgoing-message">
@@ -46,12 +49,14 @@ function ChatRoom({ jwtToken }) {
       console.log("stompClient가 이미 초기화된 상태 또는 연결 중 상태 - 연결 생략");
     }
 
-    return () => {
-      console.log("ChatRoom 컴포넌트 unmounted - disconnectFromChatRoom 호출 예정");
-      disconnectFromChatRoom();
-    };
+    // return () => {
+    // 채팅방 컴포넌트 종료시 필요하다면 구독 취소하는 로직 작성
+    //   console.log("ChatRoom 컴포넌트 unmounted - disconnectFromChatRoom 호출 예정");
+    //   disconnectFromChatRoom();
+    // };
   }, [chatRoomId]);
 
+  // 채팅방 연결 - 소켓
   const connectToChatRoom = () => {
     if (isConnecting.current || (stompClient.current && stompClient.current.connected)) {
       console.log("이미 연결 중이거나 연결된 상태이므로 새로운 연결을 생성하지 않음");
@@ -71,6 +76,8 @@ function ChatRoom({ jwtToken }) {
         isConnecting.current = false; // 연결 성공 후 상태 해제
         console.log("WebSocket 연결 성공 및 구독 시작");
 
+        // topic 키워드를 통해 chatroom/{chatRoomId} 에 대한 정보를 구독한다.
+        // 새로운 메시지 전송시 구독해뒀다면 메시지 객체가 반환된다.
         client.subscribe(`/topic/chatroom/${chatRoomId}`, (message) => {
           const receivedMessage = JSON.parse(message.body);
           console.log("새로운 메시지 수신:", receivedMessage);
@@ -85,6 +92,7 @@ function ChatRoom({ jwtToken }) {
     );
   };
 
+  // 채팅방 나가기(탈퇴)에 해당, 채팅방 회원에서 기존 회원을 제거한다.
   const disconnectFromChatRoom = () => {
     if (stompClient.current && stompClient.current.connected) {
       console.log("채팅방 나가기 호출됨 - 연결 종료 예정");
@@ -101,6 +109,7 @@ function ChatRoom({ jwtToken }) {
     }
   };
 
+  // 메시지 발송
   const sendMessage = () => {
     if (stompClient.current && stompClient.current.connected && messageContent.trim() !== '') {
       const chatMessage = {
@@ -122,6 +131,7 @@ function ChatRoom({ jwtToken }) {
       <p>연결 상태: {connectionStatus}</p>
       <div className="chat-box">
         {chatMessages.map((msg, index) => {
+          // 채팅 타입과, 이메일을 비교하여 컴포넌트 변경
           if (msg.messageType === "ANNOUNCE") {
             return <EntryExitMessage key={index} message={msg} />;
           } else if (msg.messageType === "TALK" && msg.email !== userEmail) {
