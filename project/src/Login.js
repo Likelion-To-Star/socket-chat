@@ -11,7 +11,7 @@ function Login({ onLoginSuccess }) {
     setError(''); // 초기화
 
     try {
-      const response = await axios.post('http://localhost:8080/api/member/login', {
+      const response = await axios.post('https://13.209.61.158.nip.io/api/user/login', {
         email,
         password,
       });
@@ -20,7 +20,7 @@ function Login({ onLoginSuccess }) {
       if (response.data.isSuccess && response.data.result) {
         console.log("얻어온 jwt", response.data.result);
         console.log("사용자 email", email)
-        const jwtToken = response.data.result;
+        const jwtToken = response.data.result.accessToken;
         onLoginSuccess(jwtToken, email);
       } else {
         throw new Error('로그인 실패');

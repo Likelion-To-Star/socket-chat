@@ -7,11 +7,13 @@ function ChatRooms({ jwtToken }) {
   const [chatRooms, setChatRooms] = useState([]);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const baseURL = "https://13.209.61.158.nip.io"
 
   useEffect(() => {
     const fetchChatRooms = async () => {
       try {
-        const response = await axios.get('http://localhost:8080/api/chat/all', {
+        // 페이징 쿼리는 적절히 변경 필요
+        const response = await axios.get(baseURL + '/api/community/preview/all?page=0&size=5', {
           headers: {
             Authorization: jwtToken,
           },
@@ -31,26 +33,23 @@ function ChatRooms({ jwtToken }) {
 
   const handleRoomClick = async (chatRoomId) => {
     try {
-    // token 확인용
-    // console.log("before token : ",jwtToken)
-    // const token = jwtToken.startsWith("Bearer ") ? jwtToken : `Bearer ${jwtToken}`;
-    // console.log("after token : ",token)
     // 회원 여부 확인 API 호출
-    const response = await axios.get(`http://localhost:8080/api/chat/${chatRoomId}/membership-check`, {
+    const response = await axios.get(baseURL +`/api/community/${chatRoomId}/membership-check`, {
     headers: {
         Authorization: jwtToken,
     },
     });
 
     if (response.data.isSuccess) {
-    const isMember = response.data.result;
 
+    const isMember = response.data.result;
+        console.log("회원 여부 : ", response.data.result)
         if (isMember) {
           // 회원일 경우 바로 채팅방으로 이동
           navigate(`/chat-room/${chatRoomId}`);
         } else {
           // 회원이 아닐 경우, 회원 가입 후 채팅방으로 이동
-          await axios.post(`http://localhost:8080/api/chat/enter/${chatRoomId}`, {}, {
+          await axios.post(baseURL +`/api/community/${chatRoomId}/join`, {}, {
             headers: {
               Authorization: jwtToken,
             },
@@ -71,11 +70,12 @@ function ChatRooms({ jwtToken }) {
       {chatRooms.length > 0 ? (
         chatRooms.map((room) => (
           <div
-            key={room.chatRoomId}
+            key={room.communityId}
             className="chat-room-box"
-            onClick={() => handleRoomClick(room.chatRoomId)}
+            onClick={() => handleRoomClick(room.communityId)}
           >
-            {room.chatRoomName}
+            <p>[{room.title}]</p>
+            {room.description}
           </div>
         ))
       ) : (

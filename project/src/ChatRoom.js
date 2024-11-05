@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // useNavigate import 추가
+import { useParams, useNavigate } from 'react-router-dom';
 import { Stomp } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
-import axios from 'axios'; // axios import 추가
+import axios from 'axios';
 import './App.css';
 
 // 입장 & 퇴장 알림용
@@ -42,6 +42,7 @@ function ChatRoom({ jwtToken }) {
   const stompClient = useRef(null);
   const isConnecting = useRef(false); // 중복 연결 방지 플래그
   const subscriptionId = useRef(null); // 구독 ID 저장
+  const baseURL = "https://13.209.61.158.nip.io"
 
   useEffect(() => {
     console.log("ChatRoom 컴포넌트 mounted");
@@ -69,7 +70,7 @@ function ChatRoom({ jwtToken }) {
   const fetchChatHistory = async () => {
     try {
       console.log("기존 메시지 가져오는 중...");
-      const response = await axios.get(`http://localhost:8080/api/chatroom/all/${chatRoomId}`, {
+      const response = await axios.get(baseURL + `/api/chat/${chatRoomId}`, {
         headers: {
           Authorization: jwtToken,
         },
@@ -94,7 +95,7 @@ function ChatRoom({ jwtToken }) {
 
     console.log("소켓 연결 시도 중...");
     isConnecting.current = true; // 연결 시도 중 상태 설정
-    const socketUrl = `http://localhost:8080/ws/chat`;
+    const socketUrl = baseURL + `/ws/chat`;
     const client = Stomp.over(() => new SockJS(socketUrl));
 
     client.connect(
